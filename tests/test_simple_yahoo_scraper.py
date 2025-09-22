@@ -27,71 +27,71 @@ class TestSimpleYahooScraper:
         """サンプル株式データ"""
         return [
             {
-                'code': '7203',
-                'name': 'トヨタ自動車',
-                'price': 2500.0,
-                'change': '+50',
-                'change_percent': '+2.04%'
+                "code": "7203",
+                "name": "トヨタ自動車",
+                "price": 2500.0,
+                "change": "+50",
+                "change_percent": "+2.04%",
             },
             {
-                'code': '6758',
-                'name': 'ソニーグループ',
-                'price': 12000.0,
-                'change': '-100',
-                'change_percent': '-0.82%'
-            }
+                "code": "6758",
+                "name": "ソニーグループ",
+                "price": 12000.0,
+                "change": "-100",
+                "change_percent": "-0.82%",
+            },
         ]
 
     def test_init(self, scraper):
         """初期化のテスト"""
         assert scraper.session is not None
-        assert scraper.session.headers['User-Agent'] is not None
+        assert scraper.session.headers["User-Agent"] is not None
 
-    @patch('simple_yahoo_scraper.requests.Session.get')
+    @patch("simple_yahoo_scraper.requests.Session.get")
     def test_get_stock_price_success(self, mock_get, scraper):
         """株価取得の成功テスト"""
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.text = '''
+        mock_response.text = """
         <div class="price" data-symbol="7203">2,500</div>
         <div class="change positive">+50.00 (+2.04%)</div>
-        '''
+        """
         mock_get.return_value = mock_response
 
-        result = scraper.get_stock_price('7203')
+        result = scraper.get_stock_price("7203")
 
         assert result is not None
-        assert result['code'] == '7203'
-        assert result['price'] == 2500.0
+        assert result["code"] == "7203"
+        assert result["price"] == 2500.0
 
-    @patch('simple_yahoo_scraper.requests.Session.get')
+    @patch("simple_yahoo_scraper.requests.Session.get")
     def test_get_stock_price_failure(self, mock_get, scraper):
         """株価取得の失敗テスト"""
         mock_response = Mock()
         mock_response.status_code = 404
         mock_get.return_value = mock_response
 
-        result = scraper.get_stock_price('INVALID')
+        result = scraper.get_stock_price("INVALID")
         assert result is None
 
-    @patch('simple_yahoo_scraper.requests.Session.get')
+    @patch("simple_yahoo_scraper.requests.Session.get")
     def test_get_stock_price_parse_error(self, mock_get, scraper):
         """株価取得時のパースエラーテスト"""
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.text = '<html><body>No stock data</body></html>'
+        mock_response.text = "<html><body>No stock data</body></html>"
         mock_get.return_value = mock_response
 
-        result = scraper.get_stock_price('7203')
+        result = scraper.get_stock_price("7203")
         assert result is None
 
     def test_get_popular_japanese_stocks(self, scraper):
         """人気日本株リスト取得のテスト"""
-        with patch.object(scraper, 'get_stock_price') as mock_get_price:
+        with patch.object(scraper, "get_stock_price") as mock_get_price:
             mock_get_price.side_effect = [
-                {'code': '7203', 'name': 'トヨタ自動車', 'price': 2500.0},
-                {'code': '6758', 'name': 'ソニーグループ', 'price': 12000.0},
-                None  # エラーケースをシミュレート
+                {"code": "7203", "name": "トヨタ自動車", "price": 2500.0},
+                {"code": "6758", "name": "ソニーグループ", "price": 12000.0},
+                None,  # エラーケースをシミュレート
             ]
 
             results = scraper.get_popular_japanese_stocks()
@@ -114,8 +114,8 @@ class TestSimpleYahooScraper:
             # ファイル内容を確認
             df = pd.read_csv("work/test_simple.csv")
             assert len(df) == 2
-            assert '7203' in df['code'].values
-            assert '6758' in df['code'].values
+            assert "7203" in df["code"].values
+            assert "6758" in df["code"].values
 
         finally:
             os.chdir(original_cwd)
@@ -149,11 +149,11 @@ class TestSimpleYahooScraper:
         # プライベートメソッドなどがある場合のテスト例
         pass
 
-    @patch('simple_yahoo_scraper.time.sleep')
+    @patch("simple_yahoo_scraper.time.sleep")
     def test_rate_limiting(self, mock_sleep, scraper):
         """レート制限のテスト"""
-        with patch.object(scraper, 'get_stock_price') as mock_get_price:
-            mock_get_price.return_value = {'code': '7203', 'price': 2500.0}
+        with patch.object(scraper, "get_stock_price") as mock_get_price:
+            mock_get_price.return_value = {"code": "7203", "price": 2500.0}
 
             # 複数回呼び出しでsleepが呼ばれることを確認
             scraper.get_popular_japanese_stocks()
@@ -164,5 +164,5 @@ class TestSimpleYahooScraper:
     def test_session_headers(self, scraper):
         """セッションヘッダーのテスト"""
         headers = scraper.session.headers
-        assert 'User-Agent' in headers
-        assert 'Mozilla' in headers['User-Agent']
+        assert "User-Agent" in headers
+        assert "Mozilla" in headers["User-Agent"]

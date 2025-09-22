@@ -27,61 +27,61 @@ class TestYahooFinanceScraper:
         """サンプル株式データ"""
         return [
             {
-                'code': '7203',
-                'name': 'トヨタ自動車',
-                'price': 2500.0,
-                'change': '+50',
-                'change_percent': '+2.04%',
-                'ytd_high': 2600.0,
-                'ytd_low': 2000.0,
-                'volume': 1000000
+                "code": "7203",
+                "name": "トヨタ自動車",
+                "price": 2500.0,
+                "change": "+50",
+                "change_percent": "+2.04%",
+                "ytd_high": 2600.0,
+                "ytd_low": 2000.0,
+                "volume": 1000000,
             },
             {
-                'code': '6758',
-                'name': 'ソニーグループ',
-                'price': 12000.0,
-                'change': '-100',
-                'change_percent': '-0.82%',
-                'ytd_high': 13000.0,
-                'ytd_low': 10000.0,
-                'volume': 500000
-            }
+                "code": "6758",
+                "name": "ソニーグループ",
+                "price": 12000.0,
+                "change": "-100",
+                "change_percent": "-0.82%",
+                "ytd_high": 13000.0,
+                "ytd_low": 10000.0,
+                "volume": 500000,
+            },
         ]
 
     def test_init(self, scraper):
         """初期化のテスト"""
         assert scraper.session is not None
-        assert scraper.session.headers['User-Agent'] is not None
+        assert scraper.session.headers["User-Agent"] is not None
 
-    @patch('yahoo_finance_scraper.requests.Session.get')
+    @patch("yahoo_finance_scraper.requests.Session.get")
     def test_get_stock_info_success(self, mock_get, scraper):
         """株式情報取得の成功テスト"""
         # モックレスポンスの設定
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.text = '''
+        mock_response.text = """
         <div class="price" data-symbol="7203" data-field="regularMarketPrice" data-trend="none" data-pricehint="2">2,500</div>
         <div class="change positive">+50.00 (+2.04%)</div>
         <td>年初来高値</td><td>2,600</td>
         <td>年初来安値</td><td>2,000</td>
         <span>出来高</span><span>1,000,000</span>
-        '''
+        """
         mock_get.return_value = mock_response
 
-        result = scraper.get_stock_info('7203')
+        result = scraper.get_stock_info("7203")
 
         assert result is not None
-        assert result['code'] == '7203'
-        assert result['price'] == 2500.0
+        assert result["code"] == "7203"
+        assert result["price"] == 2500.0
 
-    @patch('yahoo_finance_scraper.requests.Session.get')
+    @patch("yahoo_finance_scraper.requests.Session.get")
     def test_get_stock_info_failure(self, mock_get, scraper):
         """株式情報取得の失敗テスト"""
         mock_response = Mock()
         mock_response.status_code = 404
         mock_get.return_value = mock_response
 
-        result = scraper.get_stock_info('INVALID')
+        result = scraper.get_stock_info("INVALID")
         assert result is None
 
     def test_save_to_csv(self, scraper, sample_stock_data, temp_dir):
@@ -98,8 +98,8 @@ class TestYahooFinanceScraper:
             # ファイル内容を確認
             df = pd.read_csv("work/test_output.csv")
             assert len(df) == 2
-            assert '7203' in df['code'].values
-            assert '6758' in df['code'].values
+            assert "7203" in df["code"].values
+            assert "6758" in df["code"].values
 
         finally:
             os.chdir(original_cwd)
@@ -132,32 +132,32 @@ class TestYahooFinanceScraper:
         # テスト用のメソッドを追加する場合
         pass
 
-    @patch('yahoo_finance_scraper.time.sleep')
-    @patch('yahoo_finance_scraper.YahooFinanceScraper.get_stock_info')
+    @patch("yahoo_finance_scraper.time.sleep")
+    @patch("yahoo_finance_scraper.YahooFinanceScraper.get_stock_info")
     def test_get_multiple_stocks(self, mock_get_stock_info, mock_sleep, scraper):
         """複数株式取得のテスト"""
         # モックの設定
         mock_get_stock_info.side_effect = [
-            {'code': '7203', 'name': 'トヨタ自動車', 'price': 2500.0},
-            {'code': '6758', 'name': 'ソニーグループ', 'price': 12000.0}
+            {"code": "7203", "name": "トヨタ自動車", "price": 2500.0},
+            {"code": "6758", "name": "ソニーグループ", "price": 12000.0},
         ]
 
-        stock_codes = ['7203', '6758']
+        stock_codes = ["7203", "6758"]
         results = scraper.get_multiple_stocks(stock_codes)
 
         assert len(results) == 2
-        assert results[0]['code'] == '7203'
-        assert results[1]['code'] == '6758'
+        assert results[0]["code"] == "7203"
+        assert results[1]["code"] == "6758"
 
         # sleep が呼ばれたことを確認
         assert mock_sleep.call_count == 2
 
     def test_get_popular_japanese_stocks(self, scraper):
         """人気日本株取得のテスト"""
-        with patch.object(scraper, 'get_multiple_stocks') as mock_get_multiple:
+        with patch.object(scraper, "get_multiple_stocks") as mock_get_multiple:
             mock_get_multiple.return_value = [
-                {'code': '7203', 'name': 'トヨタ自動車'},
-                {'code': '6758', 'name': 'ソニーグループ'}
+                {"code": "7203", "name": "トヨタ自動車"},
+                {"code": "6758", "name": "ソニーグループ"},
             ]
 
             results = scraper.get_popular_japanese_stocks()

@@ -50,32 +50,32 @@ def sample_csv_data():
     """テスト用のサンプルCSVデータを返す"""
     return [
         {
-            'code': '7203',
-            'name': 'トヨタ自動車',
-            'price': 2500.0,
-            'ytd_high': 2600.0,
-            'ytd_low': 2000.0,
-            'volume': 1000000,
-            'market_cap': 35000000000000,
-            'sector': '自動車・輸送機器'
+            "code": "7203",
+            "name": "トヨタ自動車",
+            "price": 2500.0,
+            "ytd_high": 2600.0,
+            "ytd_low": 2000.0,
+            "volume": 1000000,
+            "market_cap": 35000000000000,
+            "sector": "自動車・輸送機器",
         },
         {
-            'code': '6758',
-            'name': 'ソニーグループ',
-            'price': 12000.0,
-            'ytd_high': 13000.0,
-            'ytd_low': 10000.0,
-            'volume': 500000,
-            'market_cap': 15000000000000,
-            'sector': '電気機器'
-        }
+            "code": "6758",
+            "name": "ソニーグループ",
+            "price": 12000.0,
+            "ytd_high": 13000.0,
+            "ytd_low": 10000.0,
+            "volume": 500000,
+            "market_cap": 15000000000000,
+            "sector": "電気機器",
+        },
     ]
 
 
 @pytest.fixture
 def mock_stock_response():
     """Yahoo FinanceのHTMLレスポンスをモック"""
-    return '''
+    return """
     <html>
     <body>
         <div class="price" data-symbol="7203">2,500</div>
@@ -85,24 +85,16 @@ def mock_stock_response():
         <span>出来高</span><span>1,000,000</span>
     </body>
     </html>
-    '''
+    """
 
 
 def pytest_configure(config):
     """pytest設定の初期化"""
     # カスタムマーカーの登録
-    config.addinivalue_line(
-        "markers", "slow: 時間のかかるテスト"
-    )
-    config.addinivalue_line(
-        "markers", "integration: 統合テスト"
-    )
-    config.addinivalue_line(
-        "markers", "unit: 単体テスト"
-    )
-    config.addinivalue_line(
-        "markers", "network: ネットワーク接続が必要なテスト"
-    )
+    config.addinivalue_line("markers", "slow: 時間のかかるテスト")
+    config.addinivalue_line("markers", "integration: 統合テスト")
+    config.addinivalue_line("markers", "unit: 単体テスト")
+    config.addinivalue_line("markers", "network: ネットワーク接続が必要なテスト")
 
 
 def pytest_collection_modifyitems(config, items):

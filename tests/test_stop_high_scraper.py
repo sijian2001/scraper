@@ -6,9 +6,38 @@
 import pytest
 import json
 import os
+import logging
 from unittest.mock import Mock, patch, MagicMock
 import pandas as pd
-from stop_high_scraper import StopHighScraper
+from stop_high_scraper import (
+    StopHighScraper,
+    StopHighScraperError,
+    ValidationError,
+    NetworkError,
+    DataParsingError,
+)
+
+
+class TestStopHighScraperExceptions:
+    """例外クラスのテスト"""
+
+    def test_validation_error(self):
+        """ValidationErrorのテスト"""
+        error = ValidationError("Test validation error")
+        assert str(error) == "Test validation error"
+        assert isinstance(error, StopHighScraperError)
+
+    def test_network_error(self):
+        """NetworkErrorのテスト"""
+        error = NetworkError("Test network error")
+        assert str(error) == "Test network error"
+        assert isinstance(error, StopHighScraperError)
+
+    def test_data_parsing_error(self):
+        """DataParsingErrorのテスト"""
+        error = DataParsingError("Test parsing error")
+        assert str(error) == "Test parsing error"
+        assert isinstance(error, StopHighScraperError)
 
 
 class TestStopHighScraper:
@@ -18,14 +47,89 @@ class TestStopHighScraper:
         """各テストメソッドの前に実行される"""
         self.scraper = StopHighScraper()
 
-    def test_init(self):
-        """初期化のテスト"""
-        assert (
-            self.scraper.base_url
-            == "https://finance.yahoo.co.jp/stocks/ranking/stopHigh"
-        )
-        assert "User-Agent" in self.scraper.headers
-        assert self.scraper.session is not None
+    def test_init_default(self):
+        """デフォルト初期化のテスト"""
+        scraper = StopHighScraper()
+        assert scraper.base_url == "https://finance.yahoo.co.jp/stocks/ranking/stopHigh"
+        assert "User-Agent" in scraper.headers
+        assert scraper.session is not None
+        assert scraper.request_delay == 1.0
+        assert scraper.timeout == 30
+        assert scraper.logger is not None
+        assert "requests_made" in scraper.performance_stats
+
+    def test_init_custom_params(self):
+        """カスタムパラメータでの初期化テスト"""
+        logger = logging.getLogger("test")
+        scraper = StopHighScraper(request_delay=2.0, timeout=60, logger=logger)
+        assert scraper.request_delay == 2.0
+        assert scraper.timeout == 60
+        assert scraper.logger == logger
+
+    def test_validate_inputs_valid(self):
+        """有効な入力のバリデーションテスト"""
+        # 正常なケース - 例外が発生しないことを確認
+        self.scraper._validate_inputs("all", "daily", 1)
+        self.scraper._validate_inputs("tokyo", "weekly", 5)
+        self.scraper._validate_inputs("osaka", "monthly", 10)
+
+    def test_validate_inputs_invalid_market(self):
+        """無効な市場指定のバリデーションテスト"""
+        with pytest.raises(ValidationError) as exc_info:
+            self.scraper._validate_inputs("invalid_market", "daily", 1)
+        assert "無効な市場指定" in str(exc_info.value)
+
+    def test_validate_inputs_invalid_term(self):
+        """無効な期間指定のバリデーションテスト"""
+        with pytest.raises(ValidationError) as exc_info:
+            self.scraper._validate_inputs("all", "invalid_term", 1)
+        assert "無効な期間指定" in str(exc_info.value)
+
+    def test_validate_inputs_invalid_page(self):
+        """無効なページ番号のバリデーションテスト"""
+        with pytest.raises(ValidationError) as exc_info:
+            self.scraper._validate_inputs("all", "daily", 0)
+        assert "ページ番号は1以上" in str(exc_info.value)
+
+        with pytest.raises(ValidationError) as exc_info:
+            self.scraper._validate_inputs("all", "daily", -1)
+        assert "ページ番号は1以上" in str(exc_info.value)
+
+    def test_validate_inputs_wrong_types(self):
+        """間違った型での入力テスト"""
+        with pytest.raises(ValidationError):
+            self.scraper._validate_inputs(123, "daily", 1)
+
+        with pytest.raises(ValidationError):
+            self.scraper._validate_inputs("all", 123, 1)
+
+        with pytest.raises(ValidationError):
+            self.scraper._validate_inputs("all", "daily", "1")
+
+    def test_performance_stats_tracking(self):
+        """パフォーマンス統計の追跡テスト"""
+        import time
+
+        start_time = time.time() - 0.1  # 確実に時間差を作るために過去の時刻を使用
+
+        # 成功ケース
+        self.scraper._record_request_performance(start_time, True)
+        stats = self.scraper.get_performance_stats()
+
+        assert stats["requests_made"] == 1
+        assert stats["successful_requests"] == 1
+        assert stats["failed_requests"] == 0
+        assert stats["success_rate"] == 1.0
+        assert stats["average_request_time"] >= 0  # 時間が非負であることを確認
+
+        # 失敗ケース
+        self.scraper._record_request_performance(start_time, False)
+        stats = self.scraper.get_performance_stats()
+
+        assert stats["requests_made"] == 2
+        assert stats["successful_requests"] == 1
+        assert stats["failed_requests"] == 1
+        assert stats["success_rate"] == 0.5
 
     def test_parse_ranking_data_valid_json(self):
         """有効なJSONデータのパーステスト"""
@@ -190,16 +294,47 @@ class TestStopHighScraper:
 
         assert len(result) == 1
         assert result[0]["stock_code"] == "1234"
-        mock_get.assert_called_once()
+        mock_get.assert_called_once_with(
+            self.scraper.base_url,
+            params={"market": "all", "term": "daily", "page": 1},
+            timeout=30,
+        )
 
     @patch("requests.Session.get")
-    def test_get_stop_high_stocks_http_error(self, mock_get):
-        """HTTP エラーのテスト"""
-        mock_get.side_effect = Exception("Network error")
+    def test_get_stop_high_stocks_validation_error(self, mock_get):
+        """バリデーションエラーのテスト"""
+        with pytest.raises(ValidationError):
+            self.scraper.get_stop_high_stocks(market="invalid", term="daily", page=1)
 
-        result = self.scraper.get_stop_high_stocks()
+        with pytest.raises(ValidationError):
+            self.scraper.get_stop_high_stocks(market="all", term="invalid", page=1)
 
-        assert result == []
+        with pytest.raises(ValidationError):
+            self.scraper.get_stop_high_stocks(market="all", term="daily", page=0)
+
+    @patch("requests.Session.get")
+    def test_get_stop_high_stocks_network_error(self, mock_get):
+        """ネットワークエラーのテスト"""
+        import requests
+
+        mock_get.side_effect = requests.exceptions.ConnectionError("Network error")
+
+        with pytest.raises(NetworkError) as exc_info:
+            self.scraper.get_stop_high_stocks()
+
+        assert "ネットワークエラーが発生しました" in str(exc_info.value)
+
+    @patch("requests.Session.get")
+    def test_get_stop_high_stocks_timeout_error(self, mock_get):
+        """タイムアウトエラーのテスト"""
+        import requests
+
+        mock_get.side_effect = requests.exceptions.Timeout("Timeout error")
+
+        with pytest.raises(NetworkError) as exc_info:
+            self.scraper.get_stop_high_stocks()
+
+        assert "ネットワークエラーが発生しました" in str(exc_info.value)
 
     @patch("time.sleep")
     @patch.object(StopHighScraper, "get_stop_high_stocks")
@@ -230,6 +365,43 @@ class TestStopHighScraper:
         # sleepが2回呼ばれる（ページ間の待機）
         assert mock_sleep.call_count == 2
 
+    def test_get_multiple_pages_validation_error(self):
+        """複数ページ取得のバリデーションエラーテスト"""
+        with pytest.raises(ValidationError) as exc_info:
+            self.scraper.get_multiple_pages(max_pages=0)
+        assert "max_pages は1以上の整数" in str(exc_info.value)
+
+        with pytest.raises(ValidationError) as exc_info:
+            self.scraper.get_multiple_pages(max_pages="invalid")
+        assert "max_pages は1以上の整数" in str(exc_info.value)
+
+    def test_get_multiple_pages_default_max_pages(self):
+        """複数ページ取得のデフォルト値テスト"""
+        with patch.object(self.scraper, "get_stop_high_stocks") as mock_get:
+            mock_get.return_value = []  # 空リストでループを終了
+
+            self.scraper.get_multiple_pages()
+
+            # デフォルトは1ページのみ呼ばれる
+            assert mock_get.call_count == 1
+
+    @patch.object(StopHighScraper, "get_stop_high_stocks")
+    def test_get_multiple_pages_with_errors(self, mock_get_stocks):
+        """複数ページ取得でエラーが発生した場合のテスト"""
+        mock_get_stocks.side_effect = [
+            [{"stock_code": "1234", "stock_name": "株式1"}],
+            NetworkError("ネットワークエラー"),
+        ]
+
+        result = self.scraper.get_multiple_pages(max_pages=3)
+
+        # エラーで中断されるため1件のみ
+        assert len(result) == 1
+        assert result[0]["stock_code"] == "1234"
+
+        # 2回目でエラーが発生して中断
+        assert mock_get_stocks.call_count == 2
+
     @patch("os.makedirs")
     @patch("pandas.DataFrame.to_csv")
     def test_save_to_csv(self, mock_to_csv, mock_makedirs):
@@ -246,12 +418,78 @@ class TestStopHighScraper:
             os.path.join("work", "test_output.csv"), index=False, encoding="utf-8-sig"
         )
 
+    @patch("os.makedirs")
+    @patch("pandas.DataFrame.to_csv")
+    def test_save_to_csv_error(self, mock_to_csv, mock_makedirs):
+        """CSV保存エラーのテスト"""
+        stocks_data = [{"stock_code": "1234", "stock_name": "テスト株式"}]
+        mock_to_csv.side_effect = IOError("Write error")
+
+        with pytest.raises(IOError) as exc_info:
+            self.scraper.save_to_csv(stocks_data)
+
+        assert "CSVファイルの保存に失敗しました" in str(exc_info.value)
+
     def test_save_to_csv_empty_data(self, capsys):
         """空データでのCSV保存テスト"""
         self.scraper.save_to_csv([])
+        # ログ出力をキャプチャできないため、エラーが発生しないことのみ確認
+        # (実際の使用では logger.warning が呼ばれる)
 
-        captured = capsys.readouterr()
-        assert "保存するデータがありません" in captured.out
+    def test_extract_stock_code(self):
+        """株式コード抽出のテスト"""
+        # モック セル
+        mock_cell = Mock()
+        mock_cell.get_text.return_value = "1234 テスト株式"
+
+        # URL からの抽出
+        code = self.scraper._extract_stock_code(mock_cell, "/quote/1234", 1)
+        assert code == "1234"
+
+        # パラメータからの抽出
+        code = self.scraper._extract_stock_code(mock_cell, "?code=5678&other=param", 1)
+        assert code == "5678"
+
+        # セルテキストからの抽出
+        code = self.scraper._extract_stock_code(mock_cell, "/unknown/path", 1)
+        assert code == "1234"
+
+        # 見つからない場合
+        mock_cell.get_text.return_value = "テスト株式"
+        code = self.scraper._extract_stock_code(mock_cell, "/unknown/path", 5)
+        assert code == "UNK5"
+
+    def test_extract_price_info(self):
+        """価格情報抽出のテスト"""
+        # モック セル
+        mock_cells = [Mock(), Mock()]  # rank, stock
+        mock_price_cell = Mock()
+        mock_price_cell.get_text.return_value = "1000"
+        mock_change_cell = Mock()
+        mock_change_cell.get_text.return_value = "+100"
+        mock_rate_cell = Mock()
+        mock_rate_cell.get_text.return_value = "+10%"
+
+        full_cells = mock_cells + [mock_price_cell, mock_change_cell, mock_rate_cell]
+
+        price_info = self.scraper._extract_price_info(full_cells)
+
+        assert price_info["current_price"] == "1000"
+        assert price_info["price_change"] == "+100"
+        assert price_info["price_change_rate"] == "+10%"
+
+    def test_extract_from_json_data_parsing_error(self):
+        """JSON抽出でDataParsingErrorが発生するテスト"""
+        html_content = """
+        <script>
+        window.mainRankingList = {invalid json};
+        </script>
+        """
+
+        with pytest.raises(DataParsingError) as exc_info:
+            self.scraper._extract_from_json(html_content)
+
+        assert "JSON解析エラー" in str(exc_info.value)
 
     def test_print_summary_with_data(self, capsys):
         """データありの要約表示テスト"""

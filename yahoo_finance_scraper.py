@@ -17,15 +17,17 @@ class YahooFinanceJapanScraper:
         self.base_url = "https://finance.yahoo.co.jp/stocks/ranking/yearToDateHigh"
         self.api_base = "https://finance.yahoo.co.jp/_store_api/ranking"
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'application/json, text/plain, */*',
-            'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
-            'Referer': 'https://finance.yahoo.co.jp/',
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
+            "Referer": "https://finance.yahoo.co.jp/",
         }
         self.session = requests.Session()
         self.session.headers.update(self.headers)
 
-    def get_api_data(self, page: int = 1, market: str = "all", term: str = "daily") -> Optional[Dict]:
+    def get_api_data(
+        self, page: int = 1, market: str = "all", term: str = "daily"
+    ) -> Optional[Dict]:
         """
         APIから株式ランキングデータを取得
 
@@ -41,15 +43,10 @@ class YahooFinanceJapanScraper:
         api_urls = [
             f"{self.api_base}/yearToDateHigh",
             f"https://finance.yahoo.co.jp/api/ranking/yearToDateHigh",
-            f"https://finance.yahoo.co.jp/_api/ranking/yearToDateHigh"
+            f"https://finance.yahoo.co.jp/_api/ranking/yearToDateHigh",
         ]
 
-        params = {
-            'market': market,
-            'term': term,
-            'page': page,
-            'size': 50
-        }
+        params = {"market": market, "term": term, "page": page, "size": 50}
 
         for api_url in api_urls:
             try:
@@ -73,7 +70,9 @@ class YahooFinanceJapanScraper:
 
         return None
 
-    def get_page_data(self, page: int = 1, market: str = "all", term: str = "daily") -> Optional[str]:
+    def get_page_data(
+        self, page: int = 1, market: str = "all", term: str = "daily"
+    ) -> Optional[str]:
         """
         指定されたページのHTMLデータを取得
 
@@ -85,11 +84,7 @@ class YahooFinanceJapanScraper:
         Returns:
             HTMLコンテンツまたはNone
         """
-        params = {
-            'market': market,
-            'term': term,
-            'page': page
-        }
+        params = {"market": market, "term": term, "page": page}
 
         try:
             response = self.session.get(self.base_url, params=params)
@@ -111,29 +106,35 @@ class YahooFinanceJapanScraper:
         Returns:
             株式データのリスト
         """
-        soup = BeautifulSoup(html_content, 'html.parser')
+        soup = BeautifulSoup(html_content, "html.parser")
         stocks = []
 
         # ランキングテーブルを検索
-        ranking_table = soup.find('table', class_='rankingTable')
+        ranking_table = soup.find("table", class_="rankingTable")
         if not ranking_table:
             # 別のクラス名やセレクタを試す
-            ranking_table = soup.find('table')
+            ranking_table = soup.find("table")
             if not ranking_table:
                 print("ランキングテーブルが見つかりません")
                 # デバッグ用: 全てのテーブル要素を確認
-                all_tables = soup.find_all('table')
+                all_tables = soup.find_all("table")
                 print(f"見つかったテーブル数: {len(all_tables)}")
-                for i, table in enumerate(all_tables[:3]):  # 最初の3つのテーブルだけ確認
+                for i, table in enumerate(
+                    all_tables[:3]
+                ):  # 最初の3つのテーブルだけ確認
                     print(f"テーブル{i+1}: {table.get('class', 'クラスなし')}")
                 return stocks
 
         # テーブル行を取得
-        rows = ranking_table.find('tbody').find_all('tr') if ranking_table.find('tbody') else ranking_table.find_all('tr')
+        rows = (
+            ranking_table.find("tbody").find_all("tr")
+            if ranking_table.find("tbody")
+            else ranking_table.find_all("tr")
+        )
 
         for i, row in enumerate(rows):
             try:
-                cells = row.find_all('td')
+                cells = row.find_all("td")
                 if len(cells) < 3:  # 最低限のセル数チェック
                     continue
 
@@ -148,39 +149,45 @@ class YahooFinanceJapanScraper:
                 stock_info_cell = cells[1]
 
                 # 銘柄リンクを探す
-                stock_link = stock_info_cell.find('a')
+                stock_link = stock_info_cell.find("a")
                 if not stock_link:
                     continue
 
                 stock_name = stock_link.get_text(strip=True)
-                href = stock_link.get('href', '')
+                href = stock_link.get("href", "")
 
                 # 株式コードを抽出
-                code_match = re.search(r'code=([^&]+)', href) or re.search(r'/detail/([^/?]+)', href)
-                stock_code = code_match.group(1) if code_match else ''
+                code_match = re.search(r"code=([^&]+)", href) or re.search(
+                    r"/detail/([^/?]+)", href
+                )
+                stock_code = code_match.group(1) if code_match else ""
 
                 # 市場情報を取得
-                market_span = stock_info_cell.find('span')
-                market = market_span.get_text(strip=True) if market_span else ''
+                market_span = stock_info_cell.find("span")
+                market = market_span.get_text(strip=True) if market_span else ""
 
                 # その他のデータ (価格情報など) を取得
                 additional_data = {}
                 for j, cell in enumerate(cells[2:], 2):
                     cell_text = cell.get_text(strip=True)
                     if j == 2:
-                        additional_data['value'] = cell_text
+                        additional_data["value"] = cell_text
                     elif j == 3:
-                        additional_data['price'] = cell_text
+                        additional_data["price"] = cell_text
                     elif j == 4:
-                        additional_data['change'] = cell_text
+                        additional_data["change"] = cell_text
 
                 stock_data = {
-                    'rank': rank,
-                    'stock_code': stock_code,
-                    'stock_name': stock_name,
-                    'market': market,
-                    'url': f"https://finance.yahoo.co.jp{href}" if href.startswith('/') else href,
-                    **additional_data
+                    "rank": rank,
+                    "stock_code": stock_code,
+                    "stock_name": stock_name,
+                    "market": market,
+                    "url": (
+                        f"https://finance.yahoo.co.jp{href}"
+                        if href.startswith("/")
+                        else href
+                    ),
+                    **additional_data,
                 }
 
                 stocks.append(stock_data)
@@ -194,7 +201,9 @@ class YahooFinanceJapanScraper:
 
         return stocks
 
-    def get_all_stocks(self, max_pages: int = 10, market: str = "all", term: str = "daily") -> List[Dict]:
+    def get_all_stocks(
+        self, max_pages: int = 10, market: str = "all", term: str = "daily"
+    ) -> List[Dict]:
         """
         全ページから株式データを取得
 
@@ -229,7 +238,9 @@ class YahooFinanceJapanScraper:
 
         return all_stocks
 
-    def save_to_csv(self, stocks: List[Dict], filename: str = "yahoo_finance_ytd_highs.csv") -> None:
+    def save_to_csv(
+        self, stocks: List[Dict], filename: str = "yahoo_finance_ytd_highs.csv"
+    ) -> None:
         """
         株式データをCSVファイルに保存
 
@@ -242,6 +253,7 @@ class YahooFinanceJapanScraper:
             return
 
         import os
+
         # workディレクトリが存在しない場合は作成
         os.makedirs("work", exist_ok=True)
 
@@ -249,7 +261,7 @@ class YahooFinanceJapanScraper:
         filepath = os.path.join("work", filename)
 
         df = pd.DataFrame(stocks)
-        df.to_csv(filepath, index=False, encoding='utf-8-sig')
+        df.to_csv(filepath, index=False, encoding="utf-8-sig")
         print(f"データを {filepath} に保存しました ({len(stocks)} 銘柄)")
 
     def print_summary(self, stocks: List[Dict]) -> None:
@@ -269,7 +281,7 @@ class YahooFinanceJapanScraper:
         # 市場別集計
         markets = {}
         for stock in stocks:
-            market = stock.get('market', '不明')
+            market = stock.get("market", "不明")
             markets[market] = markets.get(market, 0) + 1
 
         print(f"\n市場別内訳:")
@@ -278,7 +290,9 @@ class YahooFinanceJapanScraper:
 
         print(f"\n上位10銘柄:")
         for i, stock in enumerate(stocks[:10], 1):
-            print(f"  {i:2d}. {stock['stock_code']} {stock['stock_name']} ({stock['market']})")
+            print(
+                f"  {i:2d}. {stock['stock_code']} {stock['stock_name']} ({stock['market']})"
+            )
 
 
 def main():
