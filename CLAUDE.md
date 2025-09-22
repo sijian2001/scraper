@@ -19,9 +19,13 @@ This is a Python project with a virtual environment set up.
 - Generate requirements: `pip freeze > requirements.txt`
 - Install from requirements: `pip install -r requirements.txt`
 
-### Testing (to be added when test framework is chosen)
-- Run tests: `[command to be added]`
-- Run specific test: `[command to be added]`
+### Testing
+- Run all tests: `pytest tests/`
+- Run specific test file: `pytest tests/test_[module_name].py`
+- Run specific test: `pytest tests/test_[module_name].py::test_[function_name]`
+- Run tests with coverage: `pytest tests/ --cov=.`
+- Run tests in parallel: `pytest tests/ -n auto`
+- Generate HTML test report: `pytest tests/ --html=work/test_report.html`
 
 ### Code Quality (to be added when tools are chosen)
 - Lint: `[command to be added]`

@@ -368,8 +368,15 @@ class YearToDateLowAnalyzer:
             print("保存するデータがありません")
             return
 
-        df.to_csv(filename, index=False, encoding='utf-8-sig')
-        print(f"分析結果を {filename} に保存しました ({len(df)} 銘柄)")
+        import os
+        # workディレクトリが存在しない場合は作成
+        os.makedirs("work", exist_ok=True)
+
+        # workディレクトリ内にファイルを保存
+        filepath = os.path.join("work", filename)
+
+        df.to_csv(filepath, index=False, encoding='utf-8-sig')
+        print(f"分析結果を {filepath} に保存しました ({len(df)} 銘柄)")
 
     def print_recovery_candidates(self, df: pd.DataFrame, top_n: int = 10) -> None:
         """

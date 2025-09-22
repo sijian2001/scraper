@@ -4,3 +4,10 @@ pandas>=2.0.0
 lxml>=4.9.0
 yfinance>=0.2.18
 numpy>=1.20.0
+
+# テスト依存関係
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
+pytest-xdist>=3.0.0
+pytest-html>=3.1.0

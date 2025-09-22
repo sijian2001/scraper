@@ -241,9 +241,16 @@ class YahooFinanceJapanScraper:
             print("保存するデータがありません")
             return
 
+        import os
+        # workディレクトリが存在しない場合は作成
+        os.makedirs("work", exist_ok=True)
+
+        # workディレクトリ内にファイルを保存
+        filepath = os.path.join("work", filename)
+
         df = pd.DataFrame(stocks)
-        df.to_csv(filename, index=False, encoding='utf-8-sig')
-        print(f"データを {filename} に保存しました ({len(stocks)} 銘柄)")
+        df.to_csv(filepath, index=False, encoding='utf-8-sig')
+        print(f"データを {filepath} に保存しました ({len(stocks)} 銘柄)")
 
     def print_summary(self, stocks: List[Dict]) -> None:
         """
