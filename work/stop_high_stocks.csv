@@ -1,0 +1,7 @@
+﻿rank,stock_code,stock_name,market,yahoo_url,current_price,price_change,price_change_rate
+1,3977.S,フュージョン(株),,https://finance.yahoo.co.jp/quote/3977.S,60715:30,+100+19.72%,607
+2,5817.T,ＪＭＡＣＳ(株),,https://finance.yahoo.co.jp/quote/5817.T,47615:30,+24+5.31%,532
+3,7037.T,(株)テノ．ホールディングス,,https://finance.yahoo.co.jp/quote/7037.T,75715:30,+100+15.22%,757
+4,7093.T,アディッシュ(株),,https://finance.yahoo.co.jp/quote/7093.T,72615:30,+100+15.97%,726
+5,9082.T,大和自動車交通(株),,https://finance.yahoo.co.jp/quote/9082.T,"1,98515:30",+400+25.24%,"1,985"
+6,9171.T,栗林商船(株),,https://finance.yahoo.co.jp/quote/9171.T,"1,44015:30",+300+26.32%,"1,440"
