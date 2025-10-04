@@ -2,9 +2,9 @@
 """
 年初来高値取得・分析プログラム
 Yahoo Finance Japan から年初来高値データを取得し、詳細分析を行う
+Selenium WebDriverを使用した実装
 """
 
-import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import time
@@ -13,20 +13,14 @@ import re
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime, timedelta
 import yfinance as yf
+from base_selenium_scraper import BaseSeleniumScraper
 
 
-class YearToDateHighAnalyzer:
-    def __init__(self):
+class YearToDateHighAnalyzer(BaseSeleniumScraper):
+    def __init__(self, headless: bool = True, timeout: int = 10):
+        super().__init__(headless=headless, timeout=timeout)
         self.base_url = "https://finance.yahoo.co.jp/stocks/ranking/yearToDateHigh"
         self.quote_base = "https://finance.yahoo.co.jp/quote"
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'ja,en-US;q=0.5',
-            'Connection': 'keep-alive',
-        }
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
 
     def get_ytd_high_stocks(self, pages: int = 3) -> List[Dict]:
         """
@@ -43,13 +37,12 @@ class YearToDateHighAnalyzer:
         for page in range(1, pages + 1):
             print(f"ページ {page}/{pages} を処理中...")
 
-            params = {'market': 'all', 'term': 'daily', 'page': page}
+            url = f"{self.base_url}?market=all&term=daily&page={page}"
 
             try:
-                response = self.session.get(self.base_url, params=params)
-                response.raise_for_status()
-
-                soup = BeautifulSoup(response.text, 'html.parser')
+                # Seleniumでページを取得
+                html_content = self.get_page(url, wait_time=3)
+                soup = BeautifulSoup(html_content, 'html.parser')
 
                 # テーブル行を検索
                 rows = soup.select('table tr')
@@ -357,39 +350,39 @@ def main():
     """
     メイン実行関数
     """
-    analyzer = YearToDateHighAnalyzer()
+    # context managerを使用してWebDriverを自動的にクリーンアップ
+    with YearToDateHighAnalyzer(headless=True) as analyzer:
+        print("年初来高値更新銘柄の取得と分析を開始...")
 
-    print("年初来高値更新銘柄の取得と分析を開始...")
+        # 年初来高値更新銘柄を取得
+        stocks = analyzer.get_ytd_high_stocks(pages=2)
 
-    # 年初来高値更新銘柄を取得
-    stocks = analyzer.get_ytd_high_stocks(pages=2)
+        if not stocks:
+            print("データの取得に失敗しました")
+            return
 
-    if not stocks:
-        print("データの取得に失敗しました")
-        return
+        print(f"\n{len(stocks)} 銘柄を取得しました")
 
-    print(f"\n{len(stocks)} 銘柄を取得しました")
+        # 詳細分析を実行
+        detailed_df = analyzer.analyze_ytd_performance(stocks)
 
-    # 詳細分析を実行
-    detailed_df = analyzer.analyze_ytd_performance(stocks)
+        # 基本的な分析結果を保存
+        basic_df = pd.DataFrame(stocks)
+        analyzer.save_analysis_results(basic_df, "ytd_high_basic.csv")
 
-    # 基本的な分析結果を保存
-    basic_df = pd.DataFrame(stocks)
-    analyzer.save_analysis_results(basic_df, "ytd_high_basic.csv")
+        # 詳細分析結果を保存（詳細データがある場合）
+        if not detailed_df.empty:
+            analyzer.save_analysis_results(detailed_df, "ytd_high_detailed.csv")
 
-    # 詳細分析結果を保存（詳細データがある場合）
-    if not detailed_df.empty:
-        analyzer.save_analysis_results(detailed_df, "ytd_high_detailed.csv")
+        # 結果表示
+        analyzer.print_top_performers(detailed_df if not detailed_df.empty else basic_df)
+        analyzer.generate_summary_report(detailed_df if not detailed_df.empty else basic_df)
 
-    # 結果表示
-    analyzer.print_top_performers(detailed_df if not detailed_df.empty else basic_df)
-    analyzer.generate_summary_report(detailed_df if not detailed_df.empty else basic_df)
-
-    # フィルタリング例
-    if not detailed_df.empty and 'ytd_return_pct' in detailed_df.columns:
-        print("\n高パフォーマンス銘柄（年初来リターン10%以上）:")
-        high_performers = analyzer.filter_stocks(detailed_df, {'min_ytd_return': 10.0})
-        analyzer.print_top_performers(high_performers, 5)
+        # フィルタリング例
+        if not detailed_df.empty and 'ytd_return_pct' in detailed_df.columns:
+            print("\n高パフォーマンス銘柄（年初来リターン10%以上）:")
+            high_performers = analyzer.filter_stocks(detailed_df, {'min_ytd_return': 10.0})
+            analyzer.print_top_performers(high_performers, 5)
 
 
 if __name__ == "__main__":

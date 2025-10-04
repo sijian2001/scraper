@@ -1,29 +1,23 @@
 #!/usr/bin/env python3
 """
 Yahoo Finance Japan 年初来高値更新銘柄取得スクリプト
+Selenium WebDriverを使用した実装
 """
 
-import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import time
 import json
 import re
 from typing import List, Dict, Optional
+from base_selenium_scraper import BaseSeleniumScraper
 
 
-class YahooFinanceJapanScraper:
-    def __init__(self):
+class YahooFinanceJapanScraper(BaseSeleniumScraper):
+    def __init__(self, headless: bool = True, timeout: int = 10):
+        super().__init__(headless=headless, timeout=timeout)
         self.base_url = "https://finance.yahoo.co.jp/stocks/ranking/yearToDateHigh"
         self.api_base = "https://finance.yahoo.co.jp/_store_api/ranking"
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'application/json, text/plain, */*',
-            'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
-            'Referer': 'https://finance.yahoo.co.jp/',
-        }
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
 
     def get_api_data(self, page: int = 1, market: str = "all", term: str = "daily") -> Optional[Dict]:
         """
@@ -36,7 +30,11 @@ class YahooFinanceJapanScraper:
 
         Returns:
             JSONデータまたはNone
+
+        Note: API取得にはrequestsを使用（軽量なため）
         """
+        import requests
+
         # APIエンドポイントを試行
         api_urls = [
             f"{self.api_base}/yearToDateHigh",
@@ -51,10 +49,17 @@ class YahooFinanceJapanScraper:
             'size': 50
         }
 
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'ja,en-US;q=0.9,en;q=0.8',
+            'Referer': 'https://finance.yahoo.co.jp/',
+        }
+
         for api_url in api_urls:
             try:
                 print(f"API URL: {api_url} を試行中...")
-                response = self.session.get(api_url, params=params)
+                response = requests.get(api_url, params=params, headers=headers)
                 print(f"ステータス: {response.status_code}")
 
                 if response.status_code == 200:
@@ -85,19 +90,15 @@ class YahooFinanceJapanScraper:
         Returns:
             HTMLコンテンツまたはNone
         """
-        params = {
-            'market': market,
-            'term': term,
-            'page': page
-        }
+        # URLパラメータを構築
+        url = f"{self.base_url}?market={market}&term={term}&page={page}"
 
         try:
-            response = self.session.get(self.base_url, params=params)
-            response.raise_for_status()
-            print(f"レスポンスステータス: {response.status_code}")
-            print(f"レスポンス長: {len(response.text)} 文字")
-            return response.text
-        except requests.RequestException as e:
+            # Seleniumでページを取得
+            html_content = self.get_page(url, wait_time=3)
+            print(f"レスポンス長: {len(html_content)} 文字")
+            return html_content
+        except Exception as e:
             print(f"エラー: ページ {page} の取得に失敗しました - {e}")
             return None
 
@@ -285,33 +286,33 @@ def main():
     """
     メイン実行関数
     """
-    scraper = YahooFinanceJapanScraper()
+    # context managerを使用してWebDriverを自動的にクリーンアップ
+    with YahooFinanceJapanScraper(headless=True) as scraper:
+        print("Yahoo Finance Japan 年初来高値更新銘柄を取得中...")
 
-    print("Yahoo Finance Japan 年初来高値更新銘柄を取得中...")
+        # APIでデータ取得を試行
+        print("APIエンドポイントを試行中...")
+        api_data = scraper.get_api_data(1, "all", "daily")
 
-    # APIでデータ取得を試行
-    print("APIエンドポイントを試行中...")
-    api_data = scraper.get_api_data(1, "all", "daily")
+        if api_data:
+            print("APIからデータを取得しました")
+            print(json.dumps(api_data, indent=2, ensure_ascii=False)[:1000])
+            return
 
-    if api_data:
-        print("APIからデータを取得しました")
-        print(json.dumps(api_data, indent=2, ensure_ascii=False)[:1000])
-        return
+        # HTMLスクレイピングを試行
+        print("HTMLスクレイピング(Selenium使用)を試行中...")
+        stocks = scraper.get_all_stocks(max_pages=5, market="all", term="daily")
 
-    # HTMLスクレイピングを試行
-    print("HTMLスクレイピングを試行中...")
-    stocks = scraper.get_all_stocks(max_pages=5, market="all", term="daily")
+        if stocks:
+            # 結果表示
+            scraper.print_summary(stocks)
 
-    if stocks:
-        # 結果表示
-        scraper.print_summary(stocks)
+            # CSVファイルに保存
+            scraper.save_to_csv(stocks)
 
-        # CSVファイルに保存
-        scraper.save_to_csv(stocks)
-
-        print(f"\n取得完了: {len(stocks)} 銘柄")
-    else:
-        print("データの取得に失敗しました")
+            print(f"\n取得完了: {len(stocks)} 銘柄")
+        else:
+            print("データの取得に失敗しました")
 
 
 if __name__ == "__main__":
