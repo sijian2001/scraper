@@ -1,42 +1,34 @@
 #!/usr/bin/env python3
 """
 Yahoo Finance Japan 年初来高値更新銘柄取得スクリプト (簡易版)
-yfinanceライブラリとWebスクレイピングを組み合わせた実装
+Selenium WebDriverを使用した実装
 """
 
-import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import time
 import json
 import re
 from typing import List, Dict, Optional
+from base_selenium_scraper import BaseSeleniumScraper
 
 
-class SimpleYahooFinanceJapanScraper:
-    def __init__(self):
+class SimpleYahooFinanceJapanScraper(BaseSeleniumScraper):
+    def __init__(self, headless: bool = True, timeout: int = 10):
+        super().__init__(headless=headless, timeout=timeout)
         self.base_url = "https://finance.yahoo.co.jp/stocks/ranking/yearToDateHigh"
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'ja,en-US;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
-            'Connection': 'keep-alive',
-        }
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
 
     def get_stocks_from_html(self, page: int = 1) -> List[Dict]:
         """
         HTMLから年初来高値更新銘柄を抽出
         """
-        params = {'market': 'all', 'term': 'daily', 'page': page}
+        # URLパラメータを構築
+        url = f"{self.base_url}?market=all&term=daily&page={page}"
 
         try:
-            response = self.session.get(self.base_url, params=params)
-            response.raise_for_status()
-
-            soup = BeautifulSoup(response.text, 'html.parser')
+            # Seleniumでページを取得
+            html_content = self.get_page(url, wait_time=3)
+            soup = BeautifulSoup(html_content, 'html.parser')
             stocks = []
 
             # 異なるセレクタパターンを試す
@@ -193,34 +185,34 @@ def main():
     """
     メイン実行関数
     """
-    scraper = SimpleYahooFinanceJapanScraper()
+    # context managerを使用してWebDriverを自動的にクリーンアップ
+    with SimpleYahooFinanceJapanScraper(headless=True) as scraper:
+        print("Yahoo Finance Japan 年初来高値更新銘柄を取得中...")
 
-    print("Yahoo Finance Japan 年初来高値更新銘柄を取得中...")
+        # 年初来高値更新銘柄を取得
+        stocks = scraper.get_stocks_from_html(page=1)
 
-    # 年初来高値更新銘柄を取得
-    stocks = scraper.get_stocks_from_html(page=1)
+        if stocks:
+            # 結果表示
+            scraper.print_summary(stocks)
 
-    if stocks:
-        # 結果表示
-        scraper.print_summary(stocks)
+            # CSVファイルに保存
+            scraper.save_to_csv(stocks)
 
-        # CSVファイルに保存
-        scraper.save_to_csv(stocks)
+            print(f"\n取得完了: {len(stocks)} 銘柄")
+        else:
+            print("直接スクレイピングに失敗しました。代替データを使用します。")
 
-        print(f"\n取得完了: {len(stocks)} 銘柄")
-    else:
-        print("直接スクレイピングに失敗しました。代替データを使用します。")
+            # 代替データを使用
+            popular_stocks = scraper.get_popular_japanese_stocks()
+            print(f"\n人気の日本株リスト ({len(popular_stocks)} 銘柄):")
+            for i, stock in enumerate(popular_stocks, 1):
+                print(f"  {i:2d}. [{stock['code']}] {stock['name']}")
 
-        # 代替データを使用
-        popular_stocks = scraper.get_popular_japanese_stocks()
-        print(f"\n人気の日本株リスト ({len(popular_stocks)} 銘柄):")
-        for i, stock in enumerate(popular_stocks, 1):
-            print(f"  {i:2d}. [{stock['code']}] {stock['name']}")
+            scraper.save_to_csv(popular_stocks, "popular_japanese_stocks.csv")
 
-        scraper.save_to_csv(popular_stocks, "popular_japanese_stocks.csv")
-
-        print("\n注意: Yahoo Financeの実際のランキングデータの取得には、")
-        print("より高度なスクレイピング手法（Selenium等）が必要な場合があります。")
+            print("\n注意: Seleniumを使用していますが、Yahoo Financeのページ構造により")
+            print("データの取得に失敗する場合があります。")
 
 
 if __name__ == "__main__":

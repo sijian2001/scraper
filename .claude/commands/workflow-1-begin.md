@@ -1,4 +1,4 @@
-GitHub issueを分析修正する: $ARGUMENTS.
+GitHub issueを着手する: $ARGUMENTS.
 
 下記のステップで実施してください：
 

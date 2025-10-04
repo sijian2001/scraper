@@ -2,9 +2,9 @@
 """
 Yahoo Finance Japan ストップ安銘柄取得スクリプト
 日々の値幅制限下限（ストップ安）に達した銘柄を取得・分析
+Selenium WebDriverを使用した実装
 """
 
-import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 import time
@@ -13,21 +13,13 @@ import re
 from typing import List, Dict, Optional
 from datetime import datetime
 import os
+from base_selenium_scraper import BaseSeleniumScraper
 
 
-class StopLowScraper:
-    def __init__(self):
+class StopLowScraper(BaseSeleniumScraper):
+    def __init__(self, headless: bool = True, timeout: int = 10):
+        super().__init__(headless=headless, timeout=timeout)
         self.base_url = "https://finance.yahoo.co.jp/stocks/ranking/stopLow"
-        self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'ja,en-US;q=0.5',
-            'Accept-Encoding': 'gzip, deflate',
-            'Connection': 'keep-alive',
-            'Referer': 'https://finance.yahoo.co.jp/',
-        }
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
 
     def get_stop_low_stocks(self, pages: int = 5, market: str = "all", term: str = "daily") -> List[Dict]:
         """
@@ -72,20 +64,15 @@ class StopLowScraper:
         Returns:
             ページの銘柄データリスト
         """
-        params = {
-            'market': market,
-            'term': term,
-            'page': page
-        }
+        url = f"{self.base_url}?market={market}&term={term}&page={page}"
 
         try:
-            response = self.session.get(self.base_url, params=params)
-            response.raise_for_status()
-
-            soup = BeautifulSoup(response.text, 'html.parser')
+            # Seleniumでページを取得
+            html_content = self.get_page(url, wait_time=3)
+            soup = BeautifulSoup(html_content, 'html.parser')
             return self._parse_stock_data(soup)
 
-        except requests.RequestException as e:
+        except Exception as e:
             print(f"ページ {page} の取得でエラー: {e}")
             return []
 
@@ -387,30 +374,31 @@ def main():
     """
     メイン実行関数
     """
-    scraper = StopLowScraper()
+    # context managerを使用してWebDriverを自動的にクリーンアップ
+    with StopLowScraper(headless=True) as scraper:
+        print("Yahoo Finance Japan ストップ安銘柄を取得中...")
 
-    print("Yahoo Finance Japan ストップ安銘柄を取得中...")
+        # ストップ安銘柄を取得
+        stocks = scraper.get_stop_low_stocks(pages=3, market="all", term="daily")
 
-    # ストップ安銘柄を取得
-    stocks = scraper.get_stop_low_stocks(pages=3, market="all", term="daily")
+        if stocks:
+            # 結果表示
+            scraper.print_summary(stocks)
 
-    if stocks:
-        # 結果表示
-        scraper.print_summary(stocks)
+            # CSVファイルに保存
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+            filename = f"stop_low_stocks_{timestamp}.csv"
+            scraper.save_to_csv(stocks, filename)
 
-        # CSVファイルに保存
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-        filename = f"stop_low_stocks_{timestamp}.csv"
-        scraper.save_to_csv(stocks, filename)
+            # 分析実行
+            analysis = scraper.analyze_stop_low_patterns(stocks)
+            scraper.print_analysis_report(analysis)
 
-        # 分析実行
-        analysis = scraper.analyze_stop_low_patterns(stocks)
-        scraper.print_analysis_report(analysis)
-
-        print(f"\n取得完了: {len(stocks)} 銘柄のストップ安データを取得しました")
-    else:
-        print("ストップ安銘柄データの取得に失敗しました")
-        print("注意: Yahoo Financeのページ構造が変更された可能性があります")
+            print(f"\n取得完了: {len(stocks)} 銘柄のストップ安データを取得しました")
+        else:
+            print("ストップ安銘柄データの取得に失敗しました")
+            print("注意: Seleniumを使用していますが、Yahoo Financeのページ構造により")
+            print("データの取得に失敗する場合があります")
 
 
 if __name__ == "__main__":
